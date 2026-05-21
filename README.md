@@ -158,11 +158,19 @@ for r in results:
     print(f"{r['key']}: {r['value']} (relevance={r['relevance']:.4f})")
 ```
 
-## Web API
+## Web UI
 
-AI Agent Quantum includes a **FastAPI** web server so you can call it from any device (mobile, browser, other services).
+AI Agent Quantum includes a **built-in web interface** — open `http://localhost:8000` in your browser or phone.
 
-### Start the API Server
+Features:
+- **Run Task** — Execute the Plan-Execute-Critique orchestrator
+- **Quantum Reasoning** — Superposition-based reasoning with entropy collapse
+- **Superposition** — Create, amplify, dampen, and collapse quantum states
+- **Memory** — Store and recall with quantum decoherence
+- **Interference** — Apply constructive/destructive interference
+- **Health indicator** — Live server status
+
+### Start the Server
 
 ```bash
 # Option 1: Direct
@@ -175,7 +183,7 @@ uvicorn quantum_agent.api:app --reload --host 0.0.0.0 --port 8000
 docker compose up
 ```
 
-The API runs at `http://localhost:8000`. Interactive docs at `/docs` (Swagger UI).
+Open `http://localhost:8000` for the web UI, or `/docs` for Swagger API docs.
 
 ### API Endpoints
 
@@ -230,11 +238,12 @@ railway init
 railway up
 ```
 
-### Render
-1. Connect your GitHub repo at [render.com](https://render.com)
-2. Create a new Web Service
-3. Set build command: `pip install .`
-4. Set start command: `uvicorn quantum_agent.api:app --host 0.0.0.0 --port $PORT`
+### Render (Recommended — Free, 24/7)
+1. Go to [render.com](https://render.com) → New → **Blueprint**
+2. Connect your GitHub repo — Render auto-detects `render.yaml`
+3. Click **Apply** — done! Your API runs 24/7 for free
+
+Or manually: New Web Service → build: `pip install .` → start: `uvicorn quantum_agent.api:app --host 0.0.0.0 --port $PORT`
 
 ### Fly.io
 ```bash
@@ -290,9 +299,12 @@ ai-agent-quantum/
 │   ├── tools/             # Pluggable tool system
 │   │   ├── registry.py    # Tool registry & decorator
 │   │   └── builtin.py     # Built-in tools
+│   ├── static/            # Web UI frontend
+│   │   └── index.html     # Single-page web app
 │   ├── api.py             # FastAPI Web API
 │   └── cli.py             # CLI interface
 ├── tests/                 # Comprehensive test suite
+├── render.yaml            # Render.com deploy config
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .github/workflows/ci.yml  # GitHub Actions CI

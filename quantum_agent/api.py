@@ -11,11 +11,14 @@ API docs are available at ``/docs`` (Swagger UI) and ``/redoc``.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from quantum_agent import __version__
@@ -44,6 +47,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_STATIC_DIR = Path(__file__).parent / "static"
+if _STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # ---------------------------------------------------------------------------
 # Request / Response models
@@ -139,8 +146,14 @@ _memory = QuantumMemory(capacity=500)
 # ---------------------------------------------------------------------------
 
 
-@app.get("/", tags=["info"])
-async def root() -> dict[str, str]:
+@app.get("/", tags=["info"], include_in_schema=False)
+async def root() -> FileResponse:
+    """Serve the web UI."""
+    return FileResponse(str(_STATIC_DIR / "index.html"))
+
+
+@app.get("/api/info", tags=["info"])
+async def api_info() -> dict[str, str]:
     return {
         "name": "AI Agent Quantum API",
         "version": __version__,

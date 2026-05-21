@@ -12,8 +12,14 @@ def client():
 
 
 class TestHealthAndInfo:
-    def test_root(self, client):
+    def test_root_serves_html(self, client):
         resp = client.get("/")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+        assert "AI Agent Quantum" in resp.text
+
+    def test_api_info(self, client):
+        resp = client.get("/api/info")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "AI Agent Quantum API"

@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Agent Quantum</title>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #121828;
+      --border: #1e2a45;
+      --primary: #6366f1;
+      --primary-glow: rgba(99,102,241,.35);
+      --accent: #22d3ee;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --success: #34d399;
+      --error: #f87171;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    /* header */
+    header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    header h1 {
+      font-size: 1.4rem;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header .badge {
+      font-size: .75rem;
+      padding: .2rem .6rem;
+      border-radius: 999px;
+      background: var(--primary);
+      color: #fff;
+    }
+    #health-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+      margin-right: .3rem;
+      transition: background .3s;
+    }
+    #health-dot.ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
+
+    /* nav tabs */
+    nav {
+      display: flex;
+      gap: .25rem;
+      padding: .75rem 1.5rem 0;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    nav button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: .6rem 1.2rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-size: .9rem;
+      white-space: nowrap;
+      transition: all .2s;
+    }
+    nav button:hover { color: var(--text); }
+    nav button.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* panels */
+    main { padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: .75rem;
+      color: var(--accent);
+    }
+    label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .3rem; }
+    input, textarea, select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .6rem .8rem;
+      color: var(--text);
+      font-size: .9rem;
+      margin-bottom: .75rem;
+      resize: vertical;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+    textarea { min-height: 60px; font-family: inherit; }
+    .btn {
+      background: linear-gradient(135deg, var(--primary), #8b5cf6);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: .65rem 1.6rem;
+      font-size: .95rem;
+      cursor: pointer;
+      transition: transform .1s, box-shadow .2s;
+      width: 100%;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 15px var(--primary-glow); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    /* results */
+    .result-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: .85rem;
+      line-height: 1.5;
+    }
+    .result-box pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--accent);
+    }
+    .status-tag {
+      display: inline-block;
+      padding: .2rem .6rem;
+      border-radius: 6px;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .status-tag.accepted { background: rgba(52,211,153,.15); color: var(--success); }
+    .status-tag.error { background: rgba(248,113,113,.15); color: var(--error); }
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: .4rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+    .row { display: flex; gap: .75rem; }
+    .row > * { flex: 1; }
+
+    /* probability bars */
+    .prob-bar-wrap { margin: .4rem 0; }
+    .prob-bar-label { font-size: .8rem; margin-bottom: .2rem; display: flex; justify-content: space-between; }
+    .prob-bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+    .prob-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width .4s; }
+
+    /* responsive */
+    @media(max-width:600px){
+      .row { flex-direction: column; }
+      main { padding: 1rem; }
+      header { padding: .75rem 1rem; }
+      nav button { padding: .5rem .8rem; font-size: .8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>AI Agent Quantum</h1>
+    <small style="color:var(--muted)">Quantum-inspired Multi-Agent AI</small>
+  </div>
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <span id="health-dot"></span>
+    <span id="health-text" style="font-size:.8rem;color:var(--muted)">Checking...</span>
+    <span class="badge" id="version-badge">v?</span>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button class="active" data-tab="run">Run Task</button>
+  <button data-tab="reason">Reasoning</button>
+  <button data-tab="superposition">Superposition</button>
+  <button data-tab="memory">Memory</button>
+  <button data-tab="interference">Interference</button>
+</nav>
+
+<main>
+  <!-- RUN TASK -->
+  <div class="panel active" id="panel-run">
+    <div class="card">
+      <h2>Run Orchestrator</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+        Plan &rarr; Execute &rarr; Critique loop with quantum annealing
+      </p>
+      <label for="run-task">Task</label>
+      <input id="run-task" placeholder="e.g. Design a REST API for an e-commerce platform" />
+      <div class="row">
+        <div>
+          <label for="run-cycles">Max Cycles</label>
+          <select id="run-cycles">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div>
+          <label for="run-retry">Auto Retry</label>
+          <select id="run-retry">
+            <option value="true" selected>Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" onclick="doRun()">Run Task</button>
+      <div id="run-result" class="result-box hidden"></div>
+    </div>
+  </div>
+
+  <!-- REASONING -->
+  <div class="panel" id="panel-reason">
+    <div class="card">
+      <h2>Quantum Reasoning</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+        Superposition-based reasoning with entropy collapse
+      </p>
+      <label for="reason-q">Question</label>
+      <input id="reason-q" placeholder="e.g. What is the best database for this project?" />
+      <label for="reason-hyp">Hypotheses (comma-separated)</label>
+      <input id="reason-hyp" placeholder="e.g. PostgreSQL, MongoDB, Redis" value="PostgreSQL, MongoDB, Redis" />
+      <label for="reason-rounds">Max Rounds</label>
+      <select id="reason-rounds">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+      </select>
+      <button class="btn" onclick="doReason()">Reason</button>
+      <div id="reason-result" class="result-box hidden"></div>
+    </div>
+  </div>
+
+  <!-- SUPERPOSITION -->
+  <div class="panel" id="panel-superposition">
+    <div class="card">
+      <h2>Quantum Superposition</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+        Create, amplify, dampen, and collapse quantum states
+      </p>
+      <label for="sup-hyp">Hypotheses (comma-separated labels)</label>
+      <input id="sup-hyp" placeholder="e.g. Alpha, Beta, Gamma" value="Alpha, Beta, Gamma" />
+      <div class="row">
+        <div>
+          <label for="sup-amplify">Amplify Label</label>
+          <input id="sup-amplify" placeholder="e.g. Alpha" />
+        </div>
+        <div>
+          <label for="sup-factor">Amplify Factor</label>
+          <input id="sup-factor" type="number" value="3" min="0.1" step="0.1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>
+            <input id="sup-collapse" type="checkbox" style="width:auto;margin-right:.4rem" />
+            Collapse (Measure)
+          </label>
+        </div>
+      </div>
+      <button class="btn" onclick="doSuperposition()" style="margin-top:.5rem">Create State</button>
+      <div id="sup-result" class="result-box hidden"></div>
+    </div>
+  </div>
+
+  <!-- MEMORY -->
+  <div class="panel" id="panel-memory">
+    <div class="card">
+      <h2>Store Memory</h2>
+      <div class="row">
+        <div>
+          <label for="mem-key">Key</label>
+          <input id="mem-key" placeholder="e.g. project_goal" />
+        </div>
+        <div>
+          <label for="mem-value">Value</label>
+          <input id="mem-value" placeholder="e.g. Build a quantum AI system" />
+        </div>
+      </div>
+      <label for="mem-tags">Tags (comma-separated)</label>
+      <input id="mem-tags" placeholder="e.g. project, goal" />
+      <button class="btn" onclick="doStore()">Store</button>
+      <div id="store-result" class="result-box hidden"></div>
+    </div>
+    <div class="card">
+      <h2>Recall Memory</h2>
+      <label for="mem-query">Query</label>
+      <input id="mem-query" placeholder="e.g. project" />
+      <button class="btn" onclick="doRecall()">Recall</button>
+      <div id="recall-result" class="result-box hidden"></div>
+    </div>
+    <div class="card">
+      <h2>Memory Snapshot</h2>
+      <button class="btn" onclick="doSnapshot()">Get Snapshot</button>
+      <div id="snapshot-result" class="result-box hidden"></div>
+    </div>
+  </div>
+
+  <!-- INTERFERENCE -->
+  <div class="panel" id="panel-interference">
+    <div class="card">
+      <h2>Quantum Interference</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+        Apply constructive/destructive interference to filter hypotheses
+      </p>
+      <label for="int-hyp">Hypotheses (comma-separated)</label>
+      <input id="int-hyp" placeholder="e.g. good, average, bad" value="good, average, bad" />
+      <label for="int-scores">Scores (one evaluator, comma-separated)</label>
+      <input id="int-scores" placeholder="e.g. 0.9, 0.5, 0.1" value="0.9, 0.5, 0.1" />
+      <button class="btn" onclick="doInterference()">Apply Interference</button>
+      <div id="int-result" class="result-box hidden"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = window.location.origin;
+
+// --- Tabs ---
+document.querySelectorAll('#tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// --- Health ---
+async function checkHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    const d = await r.json();
+    document.getElementById('health-dot').classList.add('ok');
+    document.getElementById('health-text').textContent = d.status;
+    document.getElementById('version-badge').textContent = 'v' + d.version;
+  } catch {
+    document.getElementById('health-text').textContent = 'offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
+
+// --- Helpers ---
+function showResult(id, html) {
+  const el = document.getElementById(id);
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+}
+function showLoading(id) {
+  showResult(id, '<span class="spinner"></span> Processing...');
+}
+function showError(id, msg) {
+  showResult(id, '<span class="status-tag error">Error</span> ' + escHtml(msg));
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function probBars(probs) {
+  let html = '';
+  const entries = Object.entries(probs).sort((a,b) => b[1]-a[1]);
+  for (const [label, prob] of entries) {
+    const pct = (prob * 100).toFixed(1);
+    html += `<div class="prob-bar-wrap">
+      <div class="prob-bar-label"><span>${escHtml(label)}</span><span>${pct}%</span></div>
+      <div class="prob-bar"><div class="prob-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }
+  return html;
+}
+
+async function apiPost(path, body) {
+  const r = await fetch(API + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(JSON.stringify(e.detail || e));
+  }
+  return r.json();
+}
+
+// --- Run ---
+async function doRun() {
+  const task = document.getElementById('run-task').value.trim();
+  if (!task) return showError('run-result', 'Please enter a task');
+  showLoading('run-result');
+  try {
+    const d = await apiPost('/run', {
+      task,
+      max_cycles: parseInt(document.getElementById('run-cycles').value),
+      auto_retry: document.getElementById('run-retry').value === 'true',
+    });
+    let html = `<span class="status-tag accepted">${escHtml(d.status)}</span>
+      <span style="margin-left:.5rem;color:var(--muted)">
+        ${d.total_cycles} cycle(s) &middot; ${d.duration_seconds}s
+      </span>
+      <h3 style="margin-top:1rem;font-size:.95rem;color:var(--accent)">Plan: ${escHtml(d.final_plan.plan_label)}</h3>
+      <ul style="margin:.5rem 0 .5rem 1.2rem;color:var(--muted);font-size:.85rem">`;
+    for (const s of d.final_plan.steps || []) html += `<li>${escHtml(s)}</li>`;
+    html += `</ul>
+      <h3 style="font-size:.95rem;color:var(--accent)">Review</h3>
+      <p style="font-size:.85rem;color:var(--muted)">Verdict: <b>${escHtml(d.final_review.verdict)}</b> &middot; Avg: ${d.final_review.average_score}</p>
+      <details style="margin-top:.5rem"><summary style="cursor:pointer;color:var(--muted);font-size:.8rem">Full JSON response</summary>
+      <pre>${escHtml(JSON.stringify(d, null, 2))}</pre></details>`;
+    showResult('run-result', html);
+  } catch (e) { showError('run-result', e.message); }
+}
+
+// --- Reason ---
+async function doReason() {
+  const q = document.getElementById('reason-q').value.trim();
+  if (!q) return showError('reason-result', 'Please enter a question');
+  const hyps = document.getElementById('reason-hyp').value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!hyps.length) return showError('reason-result', 'Please enter hypotheses');
+  showLoading('reason-result');
+  try {
+    const d = await apiPost('/reason', {
+      question: q,
+      hypotheses: hyps,
+      max_rounds: parseInt(document.getElementById('reason-rounds').value),
+    });
+    let html = `<h3 style="font-size:1rem;color:var(--accent)">Answer: ${escHtml(d.answer)}</h3>
+      <p style="font-size:.85rem;color:var(--muted);margin:.3rem 0">Confidence: <b>${(d.confidence*100).toFixed(0)}%</b></p>`;
+    if (d.reasoning_steps && d.reasoning_steps.length) {
+      const last = d.reasoning_steps[d.reasoning_steps.length - 1];
+      if (last.top_3) {
+        const probs = {};
+        last.top_3.forEach(t => probs[t.label] = t.prob);
+        html += probBars(probs);
+      }
+    }
+    html += `<details style="margin-top:.5rem"><summary style="cursor:pointer;color:var(--muted);font-size:.8rem">Full JSON</summary>
+      <pre>${escHtml(JSON.stringify(d, null, 2))}</pre></details>`;
+    showResult('reason-result', html);
+  } catch (e) { showError('reason-result', e.message); }
+}
+
+// --- Superposition ---
+async function doSuperposition() {
+  const labels = document.getElementById('sup-hyp').value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!labels.length) return showError('sup-result', 'Please enter hypotheses');
+  showLoading('sup-result');
+  try {
+    const body = {
+      hypotheses: labels.map(l => ({ label: l })),
+      collapse: document.getElementById('sup-collapse').checked,
+    };
+    const amp = document.getElementById('sup-amplify').value.trim();
+    if (amp) {
+      body.amplify = amp;
+      body.amplify_factor = parseFloat(document.getElementById('sup-factor').value) || 2;
+    }
+    const d = await apiPost('/superposition', body);
+    let html = '';
+    if (d.collapsed_to) html += `<p style="margin-bottom:.5rem"><span class="status-tag accepted">Collapsed to: ${escHtml(d.collapsed_to)}</span></p>`;
+    html += `<p style="font-size:.85rem;color:var(--muted)">Size: ${d.size} &middot; Entropy: ${d.entropy.toFixed(4)}</p>`;
+    html += probBars(d.probabilities);
+    html += `<details style="margin-top:.5rem"><summary style="cursor:pointer;color:var(--muted);font-size:.8rem">Full JSON</summary>
+      <pre>${escHtml(JSON.stringify(d, null, 2))}</pre></details>`;
+    showResult('sup-result', html);
+  } catch (e) { showError('sup-result', e.message); }
+}
+
+// --- Memory ---
+async function doStore() {
+  const key = document.getElementById('mem-key').value.trim();
+  const value = document.getElementById('mem-value').value.trim();
+  if (!key || !value) return showError('store-result', 'Key and value required');
+  showLoading('store-result');
+  try {
+    const tags = document.getElementById('mem-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+    const d = await apiPost('/memory/store', { key, value, tags });
+    showResult('store-result', `<span class="status-tag accepted">Stored</span> key: <b>${escHtml(d.key)}</b> &middot; memory size: ${d.memory_size}`);
+  } catch (e) { showError('store-result', e.message); }
+}
+
+async function doRecall() {
+  const query = document.getElementById('mem-query').value.trim();
+  if (!query) return showError('recall-result', 'Please enter a query');
+  showLoading('recall-result');
+  try {
+    const d = await apiPost('/memory/recall', { query, top_k: 5 });
+    if (!d.results.length) return showResult('recall-result', '<span style="color:var(--muted)">No results found</span>');
+    let html = '';
+    for (const r of d.results) {
+      html += `<div style="padding:.5rem 0;border-bottom:1px solid var(--border)">
+        <b>${escHtml(r.key)}</b>: ${escHtml(JSON.stringify(r.value))}
+        <span style="color:var(--muted);font-size:.8rem;margin-left:.5rem">relevance: ${r.relevance.toFixed(2)}</span>
+      </div>`;
+    }
+    showResult('recall-result', html);
+  } catch (e) { showError('recall-result', e.message); }
+}
+
+async function doSnapshot() {
+  showLoading('snapshot-result');
+  try {
+    const r = await fetch(API + '/memory/snapshot');
+    const d = await r.json();
+    showResult('snapshot-result', `<p style="color:var(--muted);margin-bottom:.5rem">Total entries: <b>${d.size}</b></p>
+      <pre>${escHtml(JSON.stringify(d.entries, null, 2))}</pre>`);
+  } catch (e) { showError('snapshot-result', e.message); }
+}
+
+// --- Interference ---
+async function doInterference() {
+  const labels = document.getElementById('int-hyp').value.split(',').map(s => s.trim()).filter(Boolean);
+  const scores = document.getElementById('int-scores').value.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+  if (!labels.length || !scores.length) return showError('int-result', 'Hypotheses and scores required');
+  if (labels.length !== scores.length) return showError('int-result', 'Number of hypotheses must match number of scores');
+  showLoading('int-result');
+  try {
+    const d = await apiPost('/interference', {
+      hypotheses: labels.map(l => ({ label: l })),
+      scores: [scores],
+    });
+    let html = `<p style="font-size:.85rem;color:var(--muted);margin-bottom:.5rem">Entropy: ${d.entropy.toFixed(4)}</p>`;
+    html += probBars(d.probabilities);
+    html += `<details style="margin-top:.5rem"><summary style="cursor:pointer;color:var(--muted);font-size:.8rem">Full JSON</summary>
+      <pre>${escHtml(JSON.stringify(d, null, 2))}</pre></details>`;
+    showResult('int-result', html);
+  } catch (e) { showError('int-result', e.message); }
+}
+</script>
+
+</body>
+</html>
