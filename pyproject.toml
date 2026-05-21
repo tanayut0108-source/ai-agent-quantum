@@ -26,6 +26,8 @@ dependencies = [
     "pydantic>=2.5",
     "rich>=13.7",
     "typer>=0.9",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +43,7 @@ openai = [
 
 [project.scripts]
 quantum-agent = "quantum_agent.cli:app"
+quantum-agent-api = "quantum_agent.api:start"
 
 [tool.setuptools.packages.find]
 include = ["quantum_agent*"]

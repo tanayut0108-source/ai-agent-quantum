@@ -158,6 +158,97 @@ for r in results:
     print(f"{r['key']}: {r['value']} (relevance={r['relevance']:.4f})")
 ```
 
+## Web API
+
+AI Agent Quantum includes a **FastAPI** web server so you can call it from any device (mobile, browser, other services).
+
+### Start the API Server
+
+```bash
+# Option 1: Direct
+quantum-agent-api
+
+# Option 2: With auto-reload (development)
+uvicorn quantum_agent.api:app --reload --host 0.0.0.0 --port 8000
+
+# Option 3: Docker
+docker compose up
+```
+
+The API runs at `http://localhost:8000`. Interactive docs at `/docs` (Swagger UI).
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `POST` | `/run` | Run the full Plan-Execute-Critique orchestrator |
+| `POST` | `/reason` | Quantum reasoning with hypotheses |
+| `POST` | `/superposition` | Create and manipulate quantum states |
+| `POST` | `/memory/store` | Store a value in quantum memory |
+| `POST` | `/memory/recall` | Recall from memory |
+| `GET` | `/memory/snapshot` | View all memory entries |
+| `POST` | `/interference` | Apply quantum interference |
+
+### Example API Calls
+
+```bash
+# Run the orchestrator
+curl -X POST http://localhost:8000/run \
+  -H "Content-Type: application/json" \
+  -d '{"task": "Design a REST API", "max_cycles": 2}'
+
+# Quantum reasoning
+curl -X POST http://localhost:8000/reason \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Best database?", "hypotheses": ["PostgreSQL", "MongoDB", "Redis"]}'
+
+# Health check
+curl http://localhost:8000/health
+```
+
+## Docker
+
+```bash
+# Build and run
+docker compose up -d
+
+# Or build manually
+docker build -t quantum-agent .
+docker run -p 8000:8000 quantum-agent
+```
+
+## Deploy (Free Options)
+
+Deploy the API so you can access it from your phone or anywhere:
+
+### Railway (Recommended)
+```bash
+# Install Railway CLI, then:
+railway login
+railway init
+railway up
+```
+
+### Render
+1. Connect your GitHub repo at [render.com](https://render.com)
+2. Create a new Web Service
+3. Set build command: `pip install .`
+4. Set start command: `uvicorn quantum_agent.api:app --host 0.0.0.0 --port $PORT`
+
+### Fly.io
+```bash
+fly launch
+fly deploy
+```
+
+## CI/CD
+
+GitHub Actions runs automatically on every push and PR:
+- **Lint** — `ruff check`
+- **Test** — `pytest` on Python 3.11 & 3.12
+- **Docker** — build and health check
+
 ## Development
 
 ```bash
@@ -199,8 +290,12 @@ ai-agent-quantum/
 │   ├── tools/             # Pluggable tool system
 │   │   ├── registry.py    # Tool registry & decorator
 │   │   └── builtin.py     # Built-in tools
+│   ├── api.py             # FastAPI Web API
 │   └── cli.py             # CLI interface
 ├── tests/                 # Comprehensive test suite
+├── Dockerfile
+├── docker-compose.yml
+├── .github/workflows/ci.yml  # GitHub Actions CI
 ├── pyproject.toml
 └── README.md
 ```
