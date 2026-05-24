@@ -41,6 +41,9 @@ dev = [
 openai = [
     "openai>=1.12",
 ]
+llama = [
+    "llama-cpp-python>=0.2.50",
+]
 
 [project.scripts]
 quantum-agent = "quantum_agent.cli:app"
