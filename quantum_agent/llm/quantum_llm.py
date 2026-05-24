@@ -28,33 +28,17 @@ from quantum_agent.llm.provider import LLMProvider
 logger = logging.getLogger(__name__)
 
 
-_HYPOTHESIS_PROMPT = """You are a planning assistant. Given the task below, \
-generate exactly {n} different approaches or hypotheses. \
-For each, provide a short label and a list of steps.
+_HYPOTHESIS_PROMPT = """Generate exactly {n} different approaches to: {task}
 
-Task: {task}
+{context_str}For each approach, write a numbered heading and bullet point steps."""
 
-{context_str}
+_EVALUATION_PROMPT = """Rate this approach for the task "{task}" \
+on a scale of 0.0 to 1.0.
 
-Respond ONLY with a JSON array. Each element must have \
-"label" (string) and "steps" (array of strings).
-Example: [{{"label": "approach-1", "steps": ["step 1", "step 2"]}}]
-
-JSON:"""
-
-_EVALUATION_PROMPT = """You are a critical evaluator. \
-Score the following hypothesis for the given task.
-
-Task: {task}
-Hypothesis: {label}
+Approach: {label}
 Steps: {steps}
 
-Rate on a scale of 0.0 to 1.0 where:
-- 0.0 = completely irrelevant or infeasible
-- 0.5 = partially useful
-- 1.0 = excellent and complete
-
-Respond with ONLY a single number (e.g. 0.75). Nothing else.
+Respond with ONLY a number between 0.0 and 1.0.
 
 Score:"""
 
@@ -105,7 +89,7 @@ class QuantumLLM:
         if context:
             context_parts = [f"- {k}: {v}" for k, v in context.items() if k != "original_task"]
             if context_parts:
-                context_str = "Context:\n" + "\n".join(context_parts)
+                context_str = "Context:\n" + "\n".join(context_parts) + "\n\n"
 
         prompt = _HYPOTHESIS_PROMPT.format(
             n=n, task=task, context_str=context_str
@@ -115,7 +99,6 @@ class QuantumLLM:
             prompt=prompt,
             max_tokens=self.default_max_tokens,
             temperature=temperature if temperature is not None else self.default_temperature,
-            stop=["```", "\n\n\n"],
         )
 
         hypotheses = self._parse_hypotheses(result.text, n)
