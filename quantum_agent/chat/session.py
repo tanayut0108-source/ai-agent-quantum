@@ -41,6 +41,21 @@ _TERNARY_SYSTEM = (
     "Do NOT add any other text, explanation, or punctuation."
 )
 
+_FUSION_SYSTEM = (
+    "You are a quantum fusion AI. You think from multiple angles, "
+    "use all available knowledge, and give clear decisive answers.\n"
+    "For yes/no questions, end your answer with: [VERDICT: 1], "
+    "[VERDICT: 0], or [VERDICT: -1].\n"
+    "For open questions, explore multiple approaches before answering."
+)
+
+_YES_NO_PATTERNS = re.compile(
+    r"(\?\s*$"
+    r"|^(is|are|was|were|do|does|did|can|could|will|would|should|has|have|had)\b"
+    r"|ไหม|หรือเปล่า|จริงไหม|ใช่ไหม|มั้ย|รึเปล่า)",
+    re.IGNORECASE,
+)
+
 
 @dataclass(slots=True)
 class ChatMessage:
@@ -80,6 +95,7 @@ class ChatSession:
         temperature: float = 0.7,
         quantum_mode: bool = False,
         ternary_mode: bool = False,
+        fusion_mode: bool = False,
         knowledge: KnowledgeStore | None = None,
     ) -> None:
         self.provider = provider
@@ -88,6 +104,7 @@ class ChatSession:
         self.temperature = temperature
         self.quantum_mode = quantum_mode
         self.ternary_mode = ternary_mode
+        self.fusion_mode = fusion_mode
         self.knowledge = knowledge
 
         self._history: list[ChatMessage] = []
@@ -129,7 +146,9 @@ class ChatSession:
         tokens = max_tokens if max_tokens is not None else self.max_tokens
         temp = temperature if temperature is not None else self.temperature
 
-        if self.ternary_mode:
+        if self.fusion_mode:
+            reply_text = self._fusion_reply(message, messages, tokens, temp)
+        elif self.ternary_mode:
             reply_text = self._ternary_reply(messages, tokens, temp)
         elif self.quantum_mode:
             reply_text = self._quantum_reply(message, messages, tokens, temp)
@@ -190,6 +209,7 @@ class ChatSession:
             else self._system_prompt,
             "quantum_mode": self.quantum_mode,
             "ternary_mode": self.ternary_mode,
+            "fusion_mode": self.fusion_mode,
             "model": self.provider.model_info().name,
         }
         if self.knowledge:
@@ -202,7 +222,12 @@ class ChatSession:
 
     def _build_messages(self) -> list[dict[str, str]]:
         """Build the message list for the LLM, including system prompt."""
-        system = _TERNARY_SYSTEM if self.ternary_mode else self._system_prompt
+        if self.ternary_mode:
+            system = _TERNARY_SYSTEM
+        elif self.fusion_mode:
+            system = _FUSION_SYSTEM
+        else:
+            system = self._system_prompt
 
         if self.knowledge and not self.ternary_mode:
             user_query = ""
@@ -343,10 +368,84 @@ class ChatSession:
             return "-1"
         return "0"
 
+    @staticmethod
+    def _is_yes_no_question(text: str) -> bool:
+        """Detect if the message is a yes/no style question."""
+        return bool(_YES_NO_PATTERNS.search(text))
+
+    def _fusion_reply(
+        self,
+        user_message: str,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        temperature: float,
+    ) -> str:
+        """Fusion mode: auto-detect question type and combine all reasoning."""
+        is_yes_no = self._is_yes_no_question(user_message)
+
+        # Step 1: Quantum thinking — explore multiple angles
+        from quantum_agent.llm.quantum_llm import QuantumLLM
+
+        qllm = QuantumLLM(
+            self.provider,
+            default_temperature=temperature,
+            default_max_tokens=max_tokens,
+        )
+
+        context: dict[str, str] = {}
+        if self.knowledge:
+            mem_context = self.knowledge.as_context(
+                query=user_message, max_items=5,
+            )
+            if mem_context:
+                context["knowledge"] = mem_context
+
+        hypotheses = qllm.generate_hypotheses(
+            task=user_message, n=3, context=context,
+        )
+
+        hyp_summary = "\n".join(
+            f"- {h['label']}: {', '.join(h.get('steps', [])[:3])}"
+            for h in hypotheses
+        )
+
+        # Step 2: Synthesize answer
+        if is_yes_no:
+            synthesis_prompt = (
+                f"Based on these perspectives:\n{hyp_summary}\n\n"
+                f"Question: {user_message}\n"
+                f"Give a brief explanation, then end with "
+                f"[VERDICT: 1] for yes, [VERDICT: 0] for uncertain, "
+                f"or [VERDICT: -1] for no."
+            )
+        else:
+            synthesis_prompt = (
+                f"Based on these approaches:\n{hyp_summary}\n\n"
+                f"Give a clear, comprehensive answer to: {user_message}"
+            )
+
+        messages_with_synthesis = messages[:-1] + [
+            {"role": "user", "content": synthesis_prompt},
+        ]
+        raw_reply = self._standard_reply(
+            messages_with_synthesis, max_tokens, temperature,
+        )
+
+        # Step 3: Extract ternary verdict for yes/no questions
+        if is_yes_no:
+            verdict_match = re.search(r"\[VERDICT:\s*(-1|0|1)\]", raw_reply)
+            verdict = verdict_match.group(1) if verdict_match else self._parse_ternary(raw_reply)
+            clean = re.sub(r"\s*\[VERDICT:\s*(-1|0|1)\]\s*", "", raw_reply).strip()
+            label = {"1": "YES", "0": "UNCERTAIN", "-1": "NO"}.get(verdict, "?")
+            return f"{clean}\n\n>> {label} ({verdict})"
+
+        return raw_reply
+
     def __repr__(self) -> str:
         return (
             f"ChatSession(turns={self._turn_count}, "
             f"messages={len(self._history)}, "
             f"quantum={self.quantum_mode}, "
-            f"ternary={self.ternary_mode})"
+            f"ternary={self.ternary_mode}, "
+            f"fusion={self.fusion_mode})"
         )

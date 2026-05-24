@@ -320,6 +320,76 @@ class TestTernaryMode:
         assert info["ternary_mode"] is True
 
 
+class TestFusionMode:
+    def test_fusion_yes_no_question(self) -> None:
+        provider = MockChatProvider([
+            "approach-1\n- step 1\napproach-2\n- step 2\napproach-3\n- step 3",
+            "Yes, the earth is round. [VERDICT: 1]",
+        ])
+        session = ChatSession(provider, fusion_mode=True)
+        reply = session.send("Is the earth round?")
+        assert "1" in reply.content
+
+    def test_fusion_open_question(self) -> None:
+        provider = MockChatProvider([
+            "approach-1\n- step 1\napproach-2\n- step 2",
+            "Here is a comprehensive answer about web scraping.",
+        ])
+        session = ChatSession(provider, fusion_mode=True)
+        reply = session.send("How to build a web scraper")
+        assert reply.content
+
+    def test_fusion_toggle(self) -> None:
+        provider = MockChatProvider()
+        session = ChatSession(provider, fusion_mode=False)
+        assert session.fusion_mode is False
+        session.fusion_mode = True
+        assert session.fusion_mode is True
+
+    def test_fusion_repr(self) -> None:
+        provider = MockChatProvider()
+        session = ChatSession(provider, fusion_mode=True)
+        assert "fusion=True" in repr(session)
+
+    def test_fusion_context_summary(self) -> None:
+        provider = MockChatProvider()
+        session = ChatSession(provider, fusion_mode=True)
+        info = session.get_context_summary()
+        assert info["fusion_mode"] is True
+
+    def test_is_yes_no_english(self) -> None:
+        assert ChatSession._is_yes_no_question("Is the sky blue?")
+        assert ChatSession._is_yes_no_question("Can humans fly?")
+        assert ChatSession._is_yes_no_question("Does water boil at 100C?")
+
+    def test_is_yes_no_thai(self) -> None:
+        assert ChatSession._is_yes_no_question("โลกกลมไหม")
+        assert ChatSession._is_yes_no_question("จริงไหมที่น้ำเดือดที่ 100 องศา")
+        assert ChatSession._is_yes_no_question("ใช่ไหมว่า AI ฉลาด")
+
+    def test_is_not_yes_no(self) -> None:
+        assert not ChatSession._is_yes_no_question("How to build a web scraper")
+        assert not ChatSession._is_yes_no_question("Tell me about Python")
+
+    def test_fusion_verdict_parsing(self) -> None:
+        provider = MockChatProvider([
+            "approach\n- step",
+            "The earth is round. [VERDICT: 1]",
+        ])
+        session = ChatSession(provider, fusion_mode=True)
+        reply = session.send("Is the earth round?")
+        assert "YES (1)" in reply.content
+
+    def test_fusion_verdict_no(self) -> None:
+        provider = MockChatProvider([
+            "approach\n- step",
+            "Water does not boil at 50C. [VERDICT: -1]",
+        ])
+        session = ChatSession(provider, fusion_mode=True)
+        reply = session.send("Does water boil at 50 degrees?")
+        assert "NO (-1)" in reply.content
+
+
 class TestCLI:
     def test_cli_import(self) -> None:
         from quantum_agent.chat.cli import main

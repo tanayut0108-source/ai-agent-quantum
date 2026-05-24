@@ -47,6 +47,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Enable ternary mode: AI answers -1, 0, or 1 only",
     )
     parser.add_argument(
+        "--fusion", action="store_true",
+        help="Enable fusion mode: auto quantum + ternary + memory",
+    )
+    parser.add_argument(
         "--temperature", type=float, default=0.7,
         help="Generation temperature (default: 0.7)",
     )
@@ -81,15 +85,24 @@ def main(argv: list[str] | None = None) -> None:
         temperature=args.temperature,
         quantum_mode=args.quantum,
         ternary_mode=args.ternary,
+        fusion_mode=args.fusion,
         knowledge=knowledge,
     )
 
-    mode = "ternary" if args.ternary else ("quantum" if args.quantum else "standard")
+    if args.fusion:
+        mode = "fusion"
+    elif args.ternary:
+        mode = "ternary"
+    elif args.quantum:
+        mode = "quantum"
+    else:
+        mode = "standard"
     print(f"\nQuantum Agent Chat ({mode} mode)")
     print("Type 'quit' or 'exit' to end")
     print("Type '/reset' to clear history")
     print("Type '/quantum on' or '/quantum off' to toggle mode")
     print("Type '/ternary on' or '/ternary off' to toggle ternary mode")
+    print("Type '/fusion on' or '/fusion off' to toggle fusion mode")
     print("Type '/remember ...' to store knowledge")
     print("Type '/memories' to list stored knowledge")
     print("Type '/forget N' to remove memory by index")
@@ -133,6 +146,16 @@ def main(argv: list[str] | None = None) -> None:
         if user_input == "/ternary off":
             session.ternary_mode = False
             print("Ternary mode: OFF")
+            continue
+
+        if user_input == "/fusion on":
+            session.fusion_mode = True
+            print("Fusion mode: ON (quantum + ternary + memory)")
+            continue
+
+        if user_input == "/fusion off":
+            session.fusion_mode = False
+            print("Fusion mode: OFF")
             continue
 
         if user_input == "/info":
