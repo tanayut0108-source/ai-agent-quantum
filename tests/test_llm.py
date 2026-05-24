@@ -210,6 +210,20 @@ class TestLlamaBackend:
         backend.unload()
         assert not backend.is_loaded()
 
+    def test_is_chat_model_by_name(self) -> None:
+        backend = LlamaBackend(model_path="/tinyllama-chat.gguf")
+        backend._model_info = ModelInfo(name="tinyllama-1.1b-chat-v1.0")
+        assert backend._is_chat_model is True
+
+    def test_is_not_chat_model(self) -> None:
+        backend = LlamaBackend(model_path="/base-model.gguf")
+        backend._model_info = ModelInfo(name="llama-7b-base")
+        assert backend._is_chat_model is False
+
+    def test_is_chat_model_by_format(self) -> None:
+        backend = LlamaBackend(model_path="/base.gguf", chat_format="chatml")
+        assert backend._is_chat_model is True
+
 
 # ---------------------------------------------------------------------------
 # Tests: QuantumLLM

@@ -71,10 +71,13 @@ class LlamaBackend(LLMProvider):
         self,
         model_path: str = "",
         config: LlamaConfig | None = None,
+        *,
+        chat_format: str | None = None,
     ) -> None:
         self.config = config or LlamaConfig()
         if model_path:
             self.config.model_path = model_path
+        self._chat_format = chat_format
         self._model: Any = None
         self._model_info: ModelInfo | None = None
 
@@ -149,6 +152,16 @@ class LlamaBackend(LLMProvider):
     # Generation
     # ------------------------------------------------------------------
 
+    @property
+    def _is_chat_model(self) -> bool:
+        """Heuristic: detect if the loaded model is a chat/instruct model."""
+        if self._chat_format is not None:
+            return True
+        if self._model_info is None:
+            return False
+        name = self._model_info.name.lower()
+        return any(kw in name for kw in ("chat", "instruct", "it"))
+
     def generate(
         self,
         prompt: str,
@@ -156,8 +169,20 @@ class LlamaBackend(LLMProvider):
         temperature: float = 0.7,
         stop: list[str] | None = None,
     ) -> GenerationResult:
-        """Generate a single text completion."""
+        """Generate a single text completion.
+
+        For chat/instruct models the prompt is automatically wrapped in
+        a user message and sent via ``create_chat_completion`` so that
+        the model's chat template is applied.
+        """
         self._ensure_loaded()
+
+        if self._is_chat_model and hasattr(self._model, "create_chat_completion"):
+            return self.chat(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
 
         response = self._model(
             prompt,
