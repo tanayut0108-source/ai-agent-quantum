@@ -43,6 +43,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Enable quantum hypothesis mode",
     )
     parser.add_argument(
+        "--ternary", action="store_true",
+        help="Enable ternary mode: AI answers -1, 0, or 1 only",
+    )
+    parser.add_argument(
         "--temperature", type=float, default=0.7,
         help="Generation temperature (default: 0.7)",
     )
@@ -68,13 +72,15 @@ def main(argv: list[str] | None = None) -> None:
         max_tokens=args.max_tokens,
         temperature=args.temperature,
         quantum_mode=args.quantum,
+        ternary_mode=args.ternary,
     )
 
-    mode = "quantum" if args.quantum else "standard"
+    mode = "ternary" if args.ternary else ("quantum" if args.quantum else "standard")
     print(f"\nQuantum Agent Chat ({mode} mode)")
     print("Type 'quit' or 'exit' to end")
     print("Type '/reset' to clear history")
     print("Type '/quantum on' or '/quantum off' to toggle mode")
+    print("Type '/ternary on' or '/ternary off' to toggle ternary mode")
     print("Type '/info' for session info")
     print("-" * 40)
 
@@ -105,6 +111,16 @@ def main(argv: list[str] | None = None) -> None:
         if user_input == "/quantum off":
             session.quantum_mode = False
             print("Quantum mode: OFF")
+            continue
+
+        if user_input == "/ternary on":
+            session.ternary_mode = True
+            print("Ternary mode: ON (-1 / 0 / 1)")
+            continue
+
+        if user_input == "/ternary off":
+            session.ternary_mode = False
+            print("Ternary mode: OFF")
             continue
 
         if user_input == "/info":

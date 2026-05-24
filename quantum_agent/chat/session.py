@@ -21,6 +21,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -28,6 +29,16 @@ from typing import Any
 from quantum_agent.llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
+
+_TERNARY_SYSTEM = (
+    "You are a ternary logic oracle. You MUST answer every question "
+    "with ONLY one of these three values:\n"
+    "  1  = yes / true / agree\n"
+    "  0  = uncertain / unknown / maybe\n"
+    " -1  = no / false / disagree\n\n"
+    "Respond with ONLY the number (-1, 0, or 1). "
+    "Do NOT add any other text, explanation, or punctuation."
+)
 
 
 @dataclass(slots=True)
@@ -66,12 +77,14 @@ class ChatSession:
         max_tokens: int = 512,
         temperature: float = 0.7,
         quantum_mode: bool = False,
+        ternary_mode: bool = False,
     ) -> None:
         self.provider = provider
         self.max_history = max_history
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.quantum_mode = quantum_mode
+        self.ternary_mode = ternary_mode
 
         self._history: list[ChatMessage] = []
         self._system_prompt = system_prompt or (
@@ -112,7 +125,9 @@ class ChatSession:
         tokens = max_tokens if max_tokens is not None else self.max_tokens
         temp = temperature if temperature is not None else self.temperature
 
-        if self.quantum_mode:
+        if self.ternary_mode:
+            reply_text = self._ternary_reply(messages, tokens, temp)
+        elif self.quantum_mode:
             reply_text = self._quantum_reply(message, messages, tokens, temp)
         else:
             reply_text = self._standard_reply(messages, tokens, temp)
@@ -147,6 +162,7 @@ class ChatSession:
             if len(self._system_prompt) > 80
             else self._system_prompt,
             "quantum_mode": self.quantum_mode,
+            "ternary_mode": self.ternary_mode,
             "model": self.provider.model_info().name,
         }
 
@@ -156,8 +172,9 @@ class ChatSession:
 
     def _build_messages(self) -> list[dict[str, str]]:
         """Build the message list for the LLM, including system prompt."""
+        system = _TERNARY_SYSTEM if self.ternary_mode else self._system_prompt
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": self._system_prompt},
+            {"role": "system", "content": system},
         ]
         for msg in self._history:
             messages.append(msg.to_dict())
@@ -253,9 +270,42 @@ class ChatSession:
         parts.append("[Assistant]")
         return "\n".join(parts)
 
+    def _ternary_reply(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        temperature: float,
+    ) -> str:
+        """Generate a ternary (-1, 0, 1) answer."""
+        raw = self._standard_reply(messages, max_tokens=20, temperature=0.0)
+        return self._parse_ternary(raw)
+
+    @staticmethod
+    def _parse_ternary(text: str) -> str:
+        """Extract -1, 0, or 1 from LLM output."""
+        text = text.strip()
+        if text in ("-1", "0", "1"):
+            return text
+        match = re.search(r"(-1|[01])", text)
+        if match:
+            return match.group(1)
+        lower = text.lower()
+        uncertain = (
+            "maybe", "perhaps", "not sure", "uncertain", "unknown",
+            "possibly", "might", "ไม่แน่", "อาจจะ", "ไม่แน่นอน",
+        )
+        if any(w in lower for w in uncertain):
+            return "0"
+        if any(w in lower for w in ("yes", "true", "agree", "correct", "ใช่", "ถูก")):
+            return "1"
+        if any(w in lower for w in ("no", "false", "disagree", "wrong", "ไม่", "ผิด")):
+            return "-1"
+        return "0"
+
     def __repr__(self) -> str:
         return (
             f"ChatSession(turns={self._turn_count}, "
             f"messages={len(self._history)}, "
-            f"quantum={self.quantum_mode})"
+            f"quantum={self.quantum_mode}, "
+            f"ternary={self.ternary_mode})"
         )

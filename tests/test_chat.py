@@ -267,6 +267,59 @@ class TestChatSession:
 # ---------------------------------------------------------------------------
 
 
+class TestTernaryMode:
+    def test_ternary_mode_returns_number(self) -> None:
+        provider = MockChatProvider(["1"])
+        session = ChatSession(provider, ternary_mode=True)
+        reply = session.send("Is the sky blue?")
+        assert reply.content in ("-1", "0", "1")
+
+    def test_ternary_parses_yes(self) -> None:
+        provider = MockChatProvider(["Yes, absolutely."])
+        session = ChatSession(provider, ternary_mode=True)
+        reply = session.send("Is water wet?")
+        assert reply.content == "1"
+
+    def test_ternary_parses_no(self) -> None:
+        provider = MockChatProvider(["No, that is wrong."])
+        session = ChatSession(provider, ternary_mode=True)
+        reply = session.send("Is the earth flat?")
+        assert reply.content == "-1"
+
+    def test_ternary_parses_uncertain(self) -> None:
+        provider = MockChatProvider(["I am not sure about that."])
+        session = ChatSession(provider, ternary_mode=True)
+        reply = session.send("Will it rain tomorrow?")
+        assert reply.content == "0"
+
+    def test_ternary_parses_raw_number(self) -> None:
+        assert ChatSession._parse_ternary("-1") == "-1"
+        assert ChatSession._parse_ternary("0") == "0"
+        assert ChatSession._parse_ternary("1") == "1"
+
+    def test_ternary_parses_number_in_text(self) -> None:
+        assert ChatSession._parse_ternary("Answer: 1") == "1"
+        assert ChatSession._parse_ternary("I think -1") == "-1"
+
+    def test_ternary_toggle(self) -> None:
+        provider = MockChatProvider()
+        session = ChatSession(provider, ternary_mode=False)
+        assert session.ternary_mode is False
+        session.ternary_mode = True
+        assert session.ternary_mode is True
+
+    def test_ternary_repr(self) -> None:
+        provider = MockChatProvider()
+        session = ChatSession(provider, ternary_mode=True)
+        assert "ternary=True" in repr(session)
+
+    def test_context_summary_includes_ternary(self) -> None:
+        provider = MockChatProvider()
+        session = ChatSession(provider, ternary_mode=True)
+        info = session.get_context_summary()
+        assert info["ternary_mode"] is True
+
+
 class TestCLI:
     def test_cli_import(self) -> None:
         from quantum_agent.chat.cli import main
