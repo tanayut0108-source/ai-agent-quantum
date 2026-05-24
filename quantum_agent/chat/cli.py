@@ -13,7 +13,18 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--model", "-m",
         required=True,
-        help="Path to GGUF model file",
+        help="Model name for Ollama (e.g. tinyllama) or path to GGUF file",
+    )
+    parser.add_argument(
+        "--backend", "-b",
+        choices=["auto", "ollama", "llama"],
+        default="auto",
+        help="Backend: 'ollama', 'llama' (GGUF), or 'auto' (default)",
+    )
+    parser.add_argument(
+        "--ollama-url",
+        default="http://localhost:11434",
+        help="Ollama server URL (default: http://localhost:11434)",
     )
     parser.add_argument(
         "--ctx", type=int, default=2048,
@@ -21,11 +32,11 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--threads", type=int, default=0,
-        help="CPU threads (0 = auto)",
+        help="CPU threads for llama.cpp (0 = auto)",
     )
     parser.add_argument(
         "--gpu-layers", type=int, default=0,
-        help="GPU layers to offload (0 = CPU only)",
+        help="GPU layers to offload (0 = CPU only, llama.cpp)",
     )
     parser.add_argument(
         "--quantum", action="store_true",
@@ -45,29 +56,11 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    try:
-        from quantum_agent.llm import LlamaBackend
-    except ImportError:
-        print("Error: llama-cpp-python is required.")
-        print("Install: pip install llama-cpp-python")
-        sys.exit(1)
+    backend = _detect_backend(args.backend, args.model)
+
+    llm = _load_ollama(args) if backend == "ollama" else _load_llama(args)
 
     from quantum_agent.chat.session import ChatSession
-    from quantum_agent.llm.llama_backend import LlamaConfig
-
-    config = LlamaConfig(
-        model_path=args.model,
-        n_ctx=args.ctx,
-        n_threads=args.threads,
-        n_gpu_layers=args.gpu_layers,
-    )
-
-    print(f"Loading model: {args.model}")
-    llm = LlamaBackend(config=config)
-    llm.load()
-    print(f"Model loaded: {llm.model_info().name}")
-    if llm._is_chat_model:
-        print("Chat model detected")
 
     session = ChatSession(
         provider=llm,
@@ -126,6 +119,51 @@ def main(argv: list[str] | None = None) -> None:
 
         reply = session.send(user_input)
         print(f"\nAgent: {reply.content}")
+
+
+def _detect_backend(backend: str, model: str) -> str:
+    """Auto-detect which backend to use based on model string."""
+    if backend != "auto":
+        return backend
+    if model.endswith(".gguf") or "/" in model or "\\" in model:
+        return "llama"
+    return "ollama"
+
+
+def _load_ollama(args: argparse.Namespace) -> object:
+    """Load an Ollama backend."""
+    from quantum_agent.llm.ollama_backend import OllamaBackend
+
+    print(f"Using Ollama backend: {args.model}")
+    llm = OllamaBackend(model=args.model, base_url=args.ollama_url)
+    llm.load()
+    print(f"Model ready: {llm.model_info().name}")
+    return llm
+
+
+def _load_llama(args: argparse.Namespace) -> object:
+    """Load a llama.cpp GGUF backend."""
+    try:
+        from quantum_agent.llm.llama_backend import LlamaBackend, LlamaConfig
+    except ImportError:
+        print("Error: llama-cpp-python is required for GGUF models.")
+        print("Install: pip install llama-cpp-python")
+        sys.exit(1)
+
+    config = LlamaConfig(
+        model_path=args.model,
+        n_ctx=args.ctx,
+        n_threads=args.threads,
+        n_gpu_layers=args.gpu_layers,
+    )
+
+    print(f"Loading GGUF model: {args.model}")
+    llm = LlamaBackend(config=config)
+    llm.load()
+    print(f"Model loaded: {llm.model_info().name}")
+    if llm._is_chat_model:
+        print("Chat model detected")
+    return llm
 
 
 if __name__ == "__main__":
