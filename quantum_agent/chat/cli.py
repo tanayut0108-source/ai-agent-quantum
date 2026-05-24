@@ -58,13 +58,21 @@ def main(argv: list[str] | None = None) -> None:
         "--system", type=str, default="",
         help="Custom system prompt",
     )
+    parser.add_argument(
+        "--memory", type=str, default="",
+        help="Path to memory file (default: ~/.quantum_agent_memory.json)",
+    )
     args = parser.parse_args(argv)
 
     backend = _detect_backend(args.backend, args.model)
 
     llm = _load_ollama(args) if backend == "ollama" else _load_llama(args)
 
+    from quantum_agent.chat.knowledge import KnowledgeStore
     from quantum_agent.chat.session import ChatSession
+
+    knowledge = KnowledgeStore(path=args.memory or None)
+    print(f"Memory: {knowledge.count} memories loaded")
 
     session = ChatSession(
         provider=llm,
@@ -73,6 +81,7 @@ def main(argv: list[str] | None = None) -> None:
         temperature=args.temperature,
         quantum_mode=args.quantum,
         ternary_mode=args.ternary,
+        knowledge=knowledge,
     )
 
     mode = "ternary" if args.ternary else ("quantum" if args.quantum else "standard")
@@ -81,6 +90,9 @@ def main(argv: list[str] | None = None) -> None:
     print("Type '/reset' to clear history")
     print("Type '/quantum on' or '/quantum off' to toggle mode")
     print("Type '/ternary on' or '/ternary off' to toggle ternary mode")
+    print("Type '/remember ...' to store knowledge")
+    print("Type '/memories' to list stored knowledge")
+    print("Type '/forget N' to remove memory by index")
     print("Type '/info' for session info")
     print("-" * 40)
 
@@ -127,6 +139,43 @@ def main(argv: list[str] | None = None) -> None:
             info = session.get_context_summary()
             for key, val in info.items():
                 print(f"  {key}: {val}")
+            continue
+
+        if user_input.startswith("/remember "):
+            text = user_input[10:].strip()
+            if text:
+                result = session.remember(text)
+                print(result)
+            else:
+                print("Usage: /remember <text>")
+            continue
+
+        if user_input == "/memories":
+            memories = session.list_memories()
+            if memories:
+                for m in memories:
+                    print(f"  {m}")
+            else:
+                print("  No memories stored.")
+            continue
+
+        if user_input.startswith("/memories "):
+            query = user_input[10:].strip()
+            memories = session.list_memories(query)
+            if memories:
+                for m in memories:
+                    print(f"  {m}")
+            else:
+                print(f"  No memories matching '{query}'.")
+            continue
+
+        if user_input.startswith("/forget "):
+            try:
+                idx = int(user_input[8:].strip())
+                result = session.forget(idx)
+                print(result)
+            except ValueError:
+                print("Usage: /forget <index>")
             continue
 
         if user_input.startswith("/"):

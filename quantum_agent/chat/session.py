@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from quantum_agent.chat.knowledge import KnowledgeStore
 from quantum_agent.llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ class ChatSession:
     max_tokens : default max tokens per response
     temperature : default generation temperature
     quantum_mode : when True, use hypothesis generation for complex queries
+    knowledge : optional :class:`KnowledgeStore` for persistent memory
     """
 
     def __init__(
@@ -78,6 +80,7 @@ class ChatSession:
         temperature: float = 0.7,
         quantum_mode: bool = False,
         ternary_mode: bool = False,
+        knowledge: KnowledgeStore | None = None,
     ) -> None:
         self.provider = provider
         self.max_history = max_history
@@ -85,6 +88,7 @@ class ChatSession:
         self.temperature = temperature
         self.quantum_mode = quantum_mode
         self.ternary_mode = ternary_mode
+        self.knowledge = knowledge
 
         self._history: list[ChatMessage] = []
         self._system_prompt = system_prompt or (
@@ -153,9 +157,32 @@ class ChatSession:
         """Update the system prompt for future messages."""
         self._system_prompt = prompt
 
+    def remember(self, text: str, tags: list[str] | None = None) -> str:
+        """Store a piece of knowledge in persistent memory."""
+        if self.knowledge is None:
+            return "No knowledge store configured."
+        self.knowledge.add(text, tags=tags)
+        return f"Remembered ({self.knowledge.count} total)."
+
+    def forget(self, index: int) -> str:
+        """Remove a memory by index."""
+        if self.knowledge is None:
+            return "No knowledge store configured."
+        mem = self.knowledge.remove(index)
+        if mem:
+            return f"Forgot: {mem.text[:60]}"
+        return "Invalid index."
+
+    def list_memories(self, query: str = "") -> list[str]:
+        """List stored memories, optionally filtered by query."""
+        if self.knowledge is None:
+            return []
+        memories = self.knowledge.search(query) if query else self.knowledge.get_all()
+        return [f"[{i}] {m.text}" for i, m in enumerate(memories)]
+
     def get_context_summary(self) -> dict[str, Any]:
         """Return a summary of the current conversation state."""
-        return {
+        summary: dict[str, Any] = {
             "turn_count": self._turn_count,
             "message_count": len(self._history),
             "system_prompt": self._system_prompt[:80] + "..."
@@ -165,6 +192,9 @@ class ChatSession:
             "ternary_mode": self.ternary_mode,
             "model": self.provider.model_info().name,
         }
+        if self.knowledge:
+            summary["memories"] = self.knowledge.count
+        return summary
 
     # ------------------------------------------------------------------
     # Internal
@@ -173,6 +203,17 @@ class ChatSession:
     def _build_messages(self) -> list[dict[str, str]]:
         """Build the message list for the LLM, including system prompt."""
         system = _TERNARY_SYSTEM if self.ternary_mode else self._system_prompt
+
+        if self.knowledge and not self.ternary_mode:
+            user_query = ""
+            for msg in reversed(self._history):
+                if msg.role == "user":
+                    user_query = msg.content
+                    break
+            context = self.knowledge.as_context(query=user_query, max_items=5)
+            if context:
+                system = f"{system}\n\n{context}"
+
         messages: list[dict[str, str]] = [
             {"role": "system", "content": system},
         ]
