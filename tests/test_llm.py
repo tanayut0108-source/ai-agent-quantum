@@ -354,6 +354,47 @@ class TestQuantumLLM:
         result = QuantumLLM._parse_hypotheses("no json here", n=3)
         assert result == []
 
+    def test_parse_hypotheses_numbered_list(self) -> None:
+        text = """1. Web Scraping with BeautifulSoup
+- Install beautifulsoup4
+- Send HTTP request
+- Parse HTML response
+
+2. Selenium Approach
+- Install selenium
+- Launch headless browser
+- Navigate and extract data
+
+3. API-based Method
+- Find public API
+- Send GET request
+- Parse JSON response"""
+        result = QuantumLLM._parse_hypotheses(text, n=3)
+        assert len(result) == 3
+        assert "BeautifulSoup" in result[0]["label"]
+        assert len(result[0]["steps"]) >= 1
+
+    def test_parse_hypotheses_markdown_headings(self) -> None:
+        text = """## Approach A: Direct scraping
+- Step one
+- Step two
+
+## Approach B: Use an API
+- Call endpoint
+- Process data"""
+        result = QuantumLLM._parse_hypotheses(text, n=4)
+        assert len(result) == 2
+        assert len(result[0]["steps"]) >= 1
+
+    def test_parse_hypotheses_paragraphs(self) -> None:
+        text = """First approach: manual scraping
+Use requests library to fetch pages and parse with regex.
+
+Second approach: framework-based
+Use Scrapy to build a spider that crawls and collects data."""
+        result = QuantumLLM._parse_hypotheses(text, n=4)
+        assert len(result) >= 2
+
     def test_parse_score_valid(self) -> None:
         assert QuantumLLM._parse_score("0.85") == pytest.approx(0.85)
         assert QuantumLLM._parse_score("Score: 0.7") == pytest.approx(0.7)

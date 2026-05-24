@@ -268,34 +268,95 @@ class QuantumLLM:
 
     @staticmethod
     def _parse_hypotheses(text: str, n: int) -> list[dict[str, Any]]:
-        """Try to parse JSON array of hypotheses from LLM output."""
+        """Parse hypotheses from LLM output (JSON or plain text)."""
         text = text.strip()
+
+        # --- Try JSON first ---
         match = re.search(r"\[.*\]", text, re.DOTALL)
-        if not match:
-            return []
+        if match:
+            try:
+                data = json.loads(match.group())
+                if isinstance(data, list):
+                    hypotheses: list[dict[str, Any]] = []
+                    for item in data[:n]:
+                        if not isinstance(item, dict):
+                            continue
+                        label = item.get(
+                            "label", f"hypothesis-{len(hypotheses)}"
+                        )
+                        steps = item.get("steps", [])
+                        if not isinstance(steps, list):
+                            steps = [str(steps)]
+                        hypotheses.append({
+                            "label": str(label),
+                            "steps": [str(s) for s in steps],
+                        })
+                    if hypotheses:
+                        return hypotheses
+            except json.JSONDecodeError:
+                pass
 
-        try:
-            data = json.loads(match.group())
-        except json.JSONDecodeError:
-            return []
+        # --- Fallback: parse numbered/bulleted plain text ---
+        return QuantumLLM._parse_plain_text_hypotheses(text, n)
 
-        if not isinstance(data, list):
-            return []
+    @staticmethod
+    def _parse_plain_text_hypotheses(
+        text: str, n: int,
+    ) -> list[dict[str, Any]]:
+        """Extract hypotheses from numbered lists or paragraphs."""
+        heading_re = re.compile(
+            r"(?:^|\n)"
+            r"\s*(?:#+\s*|\*\*|\d+[\.\):]\s*)"
+            r"([^\n]{3,80})",
+        )
+        bullet_re = re.compile(r"^\s*[-*•]\s+(.+)", re.MULTILINE)
+        numbered_step_re = re.compile(
+            r"^\s*(?:\d+[\.\)]|[a-z][\.\)])\s+(.+)", re.MULTILINE,
+        )
 
-        hypotheses: list[dict[str, Any]] = []
-        for item in data[:n]:
-            if not isinstance(item, dict):
-                continue
-            label = item.get("label", f"hypothesis-{len(hypotheses)}")
-            steps = item.get("steps", [])
-            if not isinstance(steps, list):
-                steps = [str(steps)]
-            hypotheses.append({
-                "label": str(label),
-                "steps": [str(s) for s in steps],
-            })
+        headings = heading_re.findall(text)
 
-        return hypotheses
+        if headings:
+            hypotheses: list[dict[str, Any]] = []
+            for i, heading in enumerate(headings[:n]):
+                label = re.sub(r"[\*#]+", "", heading).strip()
+                start = text.find(heading) + len(heading)
+                end = (
+                    text.find(headings[i + 1])
+                    if i + 1 < len(headings)
+                    else len(text)
+                )
+                section = text[start:end]
+                steps = bullet_re.findall(section)
+                if not steps:
+                    steps = numbered_step_re.findall(section)
+                if not steps:
+                    steps = [
+                        s.strip()
+                        for s in section.strip().split("\n")
+                        if s.strip()
+                    ][:5]
+                hypotheses.append({
+                    "label": label[:60],
+                    "steps": [s.strip() for s in steps[:8]],
+                })
+            if hypotheses:
+                return hypotheses
+
+        paragraphs = [
+            p.strip() for p in text.split("\n\n") if p.strip()
+        ]
+        if len(paragraphs) >= 2:
+            results: list[dict[str, Any]] = []
+            for i, para in enumerate(paragraphs[:n]):
+                lines = [ln.strip() for ln in para.split("\n") if ln.strip()]
+                label = lines[0][:60] if lines else f"approach-{i + 1}"
+                steps = lines[1:] if len(lines) > 1 else lines
+                results.append({"label": label, "steps": steps[:8]})
+            if results:
+                return results
+
+        return []
 
     @staticmethod
     def _parse_score(text: str) -> float:
