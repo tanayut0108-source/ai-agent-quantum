@@ -114,7 +114,7 @@ class QuantumLLM:
         result = self.provider.generate(
             prompt=prompt,
             max_tokens=self.default_max_tokens,
-            temperature=temperature or self.default_temperature,
+            temperature=temperature if temperature is not None else self.default_temperature,
             stop=["```", "\n\n\n"],
         )
 
