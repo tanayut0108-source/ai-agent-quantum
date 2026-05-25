@@ -23,14 +23,16 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+full = [
     "pydantic>=2.5",
     "rich>=13.7",
     "typer>=0.9",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
 ]
-
-[project.optional-dependencies]
 dev = [
     "pytest>=7.4",
     "pytest-asyncio>=0.23",
@@ -48,6 +50,7 @@ llama = [
 [project.scripts]
 quantum-agent = "quantum_agent.cli:app"
 quantum-agent-api = "quantum_agent.api:start"
+quantum-setup = "quantum_agent.setup:main"
 
 [tool.setuptools.packages.find]
 include = ["quantum_agent*"]
